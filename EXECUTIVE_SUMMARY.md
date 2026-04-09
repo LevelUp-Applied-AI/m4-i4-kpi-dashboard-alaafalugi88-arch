@@ -1,26 +1,35 @@
-# Executive Summary — Amman Digital Market Analytics
+## Overview
 
-## Top Findings
+This analysis explores the performance of the Amman Digital Market using key metrics such as revenue, customer behavior, and product performance. The goal is to understand how the business is performing and identify areas for improvement.
 
-<!-- List 3-5 key findings from your analysis. Each finding should be one sentence
-     that a non-technical stakeholder can understand. Support each with a specific
-     number or statistic. -->
+---
 
-1.
-2.
-3.
+## Finding 1
 
-## Supporting Data
+Revenue varies over time, with some months performing better than others. This indicates that demand is not consistent and may depend on external factors or seasonal trends.
 
-<!-- For each finding above, reference the specific KPI value, statistical test result,
-     or visualization that supports it. Include chart filenames so the reader can
-     locate the evidence. -->
+(See: monthly_revenue.png)
+
+---
+
+## Finding 2
+
+Average Order Value is around 109 JOD, which suggests that customers tend to spend a moderate amount per purchase.
+
+(See: boxplot.png)
+
+---
+
+## Finding 3
+
+Revenue is not evenly distributed across cities. Some cities contribute more significantly than others, although the statistical test shows no strong significant difference.
+
+(See: revenue_by_city.png)
+
+---
 
 ## Recommendations
 
-<!-- Based on your findings, what actions should the business take?
-     Each recommendation should be specific, actionable, and tied to a finding above. -->
-
-1.
-2.
-3.
+1. Focus marketing efforts during high-performing months to maximize revenue.
+2. Promote products in high-performing categories to increase overall sales.
+3. Explore strategies to boost performance in lower-performing cities.

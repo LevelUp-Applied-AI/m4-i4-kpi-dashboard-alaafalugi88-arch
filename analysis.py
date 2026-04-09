@@ -1,11 +1,3 @@
-"""Integration 4 — KPI Dashboard: Amman Digital Market Analytics
-
-Extract data from PostgreSQL, compute KPIs, run statistical tests,
-and create visualizations for the executive summary.
-
-Usage:
-    python analysis.py
-"""
 import os
 import pandas as pd
 import numpy as np
@@ -17,104 +9,163 @@ from scipy import stats
 from sqlalchemy import create_engine
 
 
+# =========================
+# CONNECT
+# =========================
 def connect_db():
-    """Create a SQLAlchemy engine connected to the amman_market database.
-
-    Returns:
-        engine: SQLAlchemy engine instance
-
-    Notes:
-        Use DATABASE_URL environment variable if set, otherwise default to:
-        postgresql://postgres:postgres@localhost:5432/amman_market
-    """
-    # TODO: Create and return a SQLAlchemy engine using DATABASE_URL or a default
-    pass
+    db_url = os.getenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://postgres:postgres@localhost:5432/amman_market"
+    )
+    return create_engine(db_url)
 
 
+# =========================
+# EXTRACT DATA
+# =========================
 def extract_data(engine):
-    """Extract all required tables from the database into DataFrames.
+    customers = pd.read_sql("SELECT * FROM customers", engine)
+    products = pd.read_sql("SELECT * FROM products", engine)
+    orders = pd.read_sql("SELECT * FROM orders", engine)
+    order_items = pd.read_sql("SELECT * FROM order_items", engine)
 
-    Args:
-        engine: SQLAlchemy engine connected to amman_market
-
-    Returns:
-        dict: mapping of table names to DataFrames
-              (e.g., {"customers": df, "products": df, "orders": df, "order_items": df})
-    """
-    # TODO: Query each table and return a dictionary of DataFrames
-    pass
+    return {
+        "customers": customers,
+        "products": products,
+        "orders": orders,
+        "order_items": order_items
+    }
 
 
+# =========================
+# COMPUTE KPIs
+# =========================
 def compute_kpis(data_dict):
-    """Compute the 5 KPIs defined in kpi_framework.md.
+    customers = data_dict["customers"]
+    products = data_dict["products"]
+    orders = data_dict["orders"]
+    order_items = data_dict["order_items"]
 
-    Args:
-        data_dict: dict of DataFrames from extract_data()
+    # تنظيف
+    orders = orders[orders["status"] != "cancelled"]
+    order_items = order_items[order_items["quantity"] <= 100]
 
-    Returns:
-        dict: mapping of KPI names to their computed values (or DataFrames
-              for time-series / cohort KPIs)
+    # join
+    df = orders.merge(order_items, on="order_id") \
+               .merge(products, on="product_id") \
+               .merge(customers, on="customer_id")
 
-    Notes:
-        At least 2 KPIs should be time-based and 1 should be cohort-based.
-    """
-    # TODO: Join tables as needed, then compute each KPI from your framework
-    # TODO: Return results as a dictionary for use in visualizations
-    pass
+    df["revenue"] = df["quantity"] * df["unit_price"]
+    df["order_date"] = pd.to_datetime(df["order_date"])
+
+    # KPI 1: Monthly Revenue
+    monthly_revenue = df.groupby(df["order_date"].dt.to_period("M"))["revenue"].sum()
+
+    # KPI 2: Revenue Growth
+    revenue_growth = monthly_revenue.pct_change()
+
+    # KPI 3: Average Order Value
+    order_total = df.groupby("order_id")["revenue"].sum()
+    aov = order_total.mean()
+
+    # KPI 4: Revenue by City
+    revenue_city = df.groupby("city")["revenue"].sum()
+
+    # KPI 5: Revenue by Category
+    revenue_category = df.groupby("category")["revenue"].sum()
+
+    return {
+        "monthly_revenue": monthly_revenue,
+        "revenue_growth": revenue_growth,
+        "aov": aov,
+        "revenue_city": revenue_city,
+        "revenue_category": revenue_category,
+        "full_df": df
+    }
 
 
+# =========================
+# STATISTICAL TESTS
+# =========================
 def run_statistical_tests(data_dict):
-    """Run hypothesis tests to validate patterns in the data.
+    kpis = compute_kpis(data_dict)
+    df = kpis["full_df"]
 
-    Args:
-        data_dict: dict of DataFrames from extract_data()
+    # t-test between cities
+    amman = df[df["city"] == "Amman"]["revenue"]
+    irbid = df[df["city"] == "Irbid"]["revenue"]
 
-    Returns:
-        dict: mapping of test names to results (test statistic, p-value,
-              interpretation)
+    t_stat, p_val = stats.ttest_ind(amman, irbid, equal_var=False)
 
-    Notes:
-        Run at least one test. Consider:
-        - Does average order value differ across product categories?
-        - Is there a significant trend in monthly revenue?
-        - Do customer cities differ in purchasing behavior?
-    """
-    # TODO: Select and run appropriate statistical tests
-    # TODO: Interpret results (reject or fail to reject the null hypothesis)
-    pass
+    return {
+        "t_test_city": {
+            "t_stat": t_stat,
+            "p_value": p_val,
+            "interpretation": "Significant difference" if p_val < 0.05 else "No significant difference"
+        }
+    }
 
 
+# =========================
+# VISUALIZATIONS
+# =========================
 def create_visualizations(kpi_results, stat_results):
-    """Create publication-quality charts for all 5 KPIs.
+    sns.set_palette("colorblind")
 
-    Args:
-        kpi_results: dict from compute_kpis()
-        stat_results: dict from run_statistical_tests()
+    # 1. Monthly Revenue
+    plt.figure()
+    kpi_results["monthly_revenue"].plot()
+    plt.title("Monthly Revenue Trend")
+    plt.xlabel("Month")
+    plt.ylabel("Revenue")
+    plt.savefig("output/monthly_revenue.png")
+    plt.close()
 
-    Returns:
-        None
+    # 2. Revenue Growth
+    plt.figure()
+    kpi_results["revenue_growth"].plot()
+    plt.title("Revenue Growth Rate")
+    plt.savefig("output/revenue_growth.png")
+    plt.close()
 
-    Side effects:
-        Saves at least 5 PNG files to the output/ directory.
-        Each chart should have a descriptive title stating the finding,
-        proper axis labels, and annotations where appropriate.
-    """
-    # TODO: Create one visualization per KPI, saved to output/
-    # TODO: Use appropriate chart types (bar, line, scatter, heatmap, etc.)
-    # TODO: Ensure titles state the insight, not just the data
-    pass
+    # 3. Revenue by City
+    plt.figure()
+    kpi_results["revenue_city"].plot(kind="bar")
+    plt.title("Revenue by City")
+    plt.savefig("output/revenue_by_city.png")
+    plt.close()
+
+    # 4. Revenue by Category
+    plt.figure()
+    kpi_results["revenue_category"].plot(kind="bar")
+    plt.title("Revenue by Category")
+    plt.savefig("output/revenue_by_category.png")
+    plt.close()
+
+    # 5. Boxplot
+    plt.figure()
+    sns.boxplot(x="category", y="revenue", data=kpi_results["full_df"])
+    plt.title("Order Value Distribution by Category")
+    plt.savefig("output/boxplot.png")
+    plt.close()
 
 
+# =========================
+# MAIN
+# =========================
 def main():
-    """Orchestrate the full analysis pipeline."""
     os.makedirs("output", exist_ok=True)
 
-    # TODO: Connect to the database
-    # TODO: Extract data
-    # TODO: Compute KPIs
-    # TODO: Run statistical tests
-    # TODO: Create visualizations
-    # TODO: Print a summary of KPI values and test results
+    engine = connect_db()
+    data = extract_data(engine)
+
+    kpis = compute_kpis(data)
+    stats_results = run_statistical_tests(data)
+
+    create_visualizations(kpis, stats_results)
+
+    print("AOV:", kpis["aov"])
+    print("Stat Test:", stats_results)
 
 
 if __name__ == "__main__":
